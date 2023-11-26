@@ -1,10 +1,16 @@
-﻿# Tower of Hanoi
+﻿# Solver of Random Hanoi
 
-This is my first project in C. A terminal-based game and solver that allows you to play or let the computer solve the puzzle automatically. Win the game by moving all the disks to the rightmost column.
+This is my first project in C. A terminal-based game and solver that can randomly initializes puzzles, and lets you or your computer solve it. Win the game by moving all the disks to the rightmost column.
 
-### Features
+### Updates - v1.1
 
-- Randomly generated puzzles with different difficulty levels.
+- Added hints and optimized the behavior of auto-solving.
+- Optimized code and display.
+- Please note, this version is NOT compatible with the progress saved in previous versions.
+
+### Key features
+
+- Randomly generated puzzles with different difficulty levels (3~12).
 - Save and load the game progress.
 - Watch how the computer solves optimally.
 
@@ -30,10 +36,12 @@ For example, run `./hanoi 8r` will start a game of level 8 with random initial c
 - Use the left and right arrow keys to move your hand over the different columns.
 - Use the up arrow key to pick up the topmost disk of that column, if your hand is empty.
 - Use the down arrow key to put down the disk on top of that column, if the rules allow it.
-- Press [S] or [s] to save the game progress to a file. You will be prompted to enter the file name.
-- Press [L] or [l] to load the game progress from a file. You will be prompted to enter the file name.
-- Press [A] or [a] while no disk is in hand, it will automatically move one disk(optimal step). If you press and hold it, it will move all disks according to the optimal solution until the puzzle is solved.
-- Press [q] to quit the game. All unsaved progress will be lost.
+- Press [S] to save the game progress to a file. You will be prompted to enter the file name.
+- Press [L] to load the game progress from a file. You will be prompted to enter the file name.
+- Press [H] while no disk is in hand, it will tell you the next best movement.
+- Press [A] while no disk is in hand, it will continuously move all the disks according to the optimal solution until the puzzle is solved.
+- Press [A] again to stop the auto-solving.
+- Press [Q] to quit the game. All unsaved progress will be lost.
 
 ### License
 

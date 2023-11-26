@@ -6,6 +6,8 @@
 #include "solver.h"
 
 #define MAX_LEVEL 12
+#define SPEED 100
+#define SAVE_HEADER "carnivion.labs.hanoi.v1_1"
 
 uint8_t level = 5;
 uint8_t disks[3][MAX_LEVEL];
@@ -13,11 +15,11 @@ uint8_t inHand = 0;
 uint8_t hand = 0;
 int key;
 const uint8_t colStops[3] = {12, 38, 65};
-uint32_t moves = 0;
+uint16_t moves = 0;
 bool win = false;
 bool randomize = false;
 char info[80];
-char save_header[] = "carnivion.labs.hanoi";
+bool autoSolving = false;
 
 static void checkWin() {
 	for (int i = 0; i < level; ++i) {
@@ -27,40 +29,43 @@ static void checkWin() {
 		}
 	}
 	win = true;
+	strcpy(info, "WIN!");
+	timeout(-1);
+	autoSolving = false;
 }
 
 static void mvadddisk(int row, int colstop, int disk_width) {
 	if (disk_width == 1)
-		mvprintw(row, colStops[colstop] - 1, "<++>");
+		mvprintw(row, colStops[colstop] - 1, "<||>");
 	else if (disk_width > 1) {
 		int s = disk_width > 9 ? 2 : 1;
 		mvaddch(row, colStops[colstop] - disk_width, '<');
 		printw("%d", disk_width);
 		for (int j = 0; j < disk_width - 1 - s; ++j)
-			addch('-');
-		addstr("++");
+			addch('=');
+		addstr("||");
 		for (int j = 0; j < disk_width - 1 - s; ++j)
-			addch('-');
+			addch('=');
 		printw("%d", disk_width);
 		addch('>');
 	}
 }
 
-void draw() {
+static void draw() {
 	erase();
 
-	mvprintw(0, 0, "Level: %d\n\n", level);
+	mvprintw(0, 0, "Level: %d", level);
 
 	if (inHand == 0)
 		mvaddstr(2, colStops[hand], "vv");
 	else
 		mvadddisk(2, hand, inHand);
 	for (int t = 0; t < 3; ++t)
-		mvaddstr(4, colStops[t], "++");
+		mvaddstr(4, colStops[t], "||");
 	for (int i = 0; i < level; ++i) {
 		for (int t = 0; t < 3; ++t) {
 			if (disks[t][i] == 0)
-				mvaddstr(5 + i, colStops[t], "++");
+				mvaddstr(5 + i, colStops[t], "||");
 			else if (disks[t][i] > 0)
 				mvadddisk(5 + i, t, disks[t][i]);
 		}
@@ -69,7 +74,12 @@ void draw() {
 	if (strlen(info))
 		mvprintw(LINES - 3, 0, "%s", info);
 	mvprintw(LINES - 2, 0, "Moves: %d", moves);
-	mvaddstr(LINES - 1, 0, "Press [q] to quit.");
+	if (win)
+		mvaddstr(LINES - 1, 0, "[q]uit");
+	else if (autoSolving)
+		mvaddstr(LINES - 1, 0, "[a] = stop, [q]uit");
+	else
+		mvaddstr(LINES - 1, 0, "[arrows] = move, [s]ave, [l]oad, [h]int, [a]uto, [q]uit");
 
 	refresh();
 }
@@ -85,15 +95,15 @@ static void toSave() {
 	noecho();
 	file = fopen(fn, "wb");
 	if (file != NULL) {
-		fwrite(save_header, sizeof(char), sizeof(save_header) / sizeof(char), file);
-		fwrite(&level, sizeof(uint8_t), 1, file);
-		fwrite(disks, sizeof(uint8_t), sizeof(disks) / sizeof(uint8_t), file);
-		fwrite(&inHand, sizeof(uint8_t), 1, file);
-		fwrite(&hand, sizeof(uint8_t), 1, file);
-		fwrite(&moves, sizeof(uint32_t), 1, file);
-		fwrite(&randomize, sizeof(bool), 1, file);
+		fwrite(SAVE_HEADER, 1, sizeof(SAVE_HEADER), file);
+		fwrite(&level, sizeof(level), 1, file);
+		fwrite(disks, sizeof(disks[0]), sizeof(disks) / sizeof(disks[0]), file);
+		fwrite(&inHand, sizeof(inHand), 1, file);
+		fwrite(&hand, sizeof(hand), 1, file);
+		fwrite(&moves, sizeof(moves), 1, file);
+		fwrite(&randomize, sizeof(randomize), 1, file);
 		fclose(file);
-		printw("Progress is saved to %s\n", fn);
+		printw("Progress is saved to %s, Press any key to continue.\n", fn);
 	} else
 		printw("Error saving the file.");
 	getch();
@@ -110,15 +120,16 @@ static void toLoad() {
 	noecho();
 	file = fopen(fn, "rb");
 	if (file != NULL) {
-		fread(save_header, sizeof(char), sizeof(save_header) / sizeof(char), file);
-		fread(&level, sizeof(uint8_t), 1, file);
-		fread(disks, sizeof(uint8_t), sizeof(disks) / sizeof(uint8_t), file);
-		fread(&inHand, sizeof(uint8_t), 1, file);
-		fread(&hand, sizeof(uint8_t), 1, file);
-		fread(&moves, sizeof(uint32_t), 1, file);
-		fread(&randomize, sizeof(bool), 1, file);
+		fseek(file, sizeof(SAVE_HEADER), SEEK_SET);
+		fread(&level, sizeof(level), 1, file);
+		fread(disks, sizeof(disks[0]), sizeof(disks) / sizeof(disks[0]), file);
+		fread(&inHand, sizeof(inHand), 1, file);
+		fread(&hand, sizeof(hand), 1, file);
+		fread(&moves, sizeof(moves), 1, file);
+		fread(&randomize, sizeof(randomize), 1, file);
 		fclose(file);
-		printw("Progress is loaded from %s\n", fn);
+		printw("Progress is loaded from %s, Press any key to continue.\n", fn);
+		strcpy(info, "");
 	} else
 		printw("Error loading the file.\n");
 	getch();
@@ -187,80 +198,101 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	do {
-		if (win)
-			continue;
-		strcpy(info, "");
-
-		switch (key) {
-			case KEY_UP: {
-				if (inHand)
-					break;
-				for (int i = 0; i < level; ++i) {
-					if (disks[hand][i]) {
-						inHand = disks[hand][i];
-						disks[hand][i] = 0;
+	while (1) {
+		if (!win) {
+			if (autoSolving) {
+				strcpy(info, "Auto-solving...");
+				moveOne();
+				++moves;
+				napms(SPEED);
+				if (key == 'a' || key == 'A') {
+					timeout(-1);
+					autoSolving = false;
+					strcpy(info, "");
+				}
+			} else {
+				strcpy(info, "");
+				switch (key) {
+					case KEY_UP: {
+						if (inHand) break;
+						for (int i = 0; i < level; ++i) {
+							if (disks[hand][i]) {
+								inHand = disks[hand][i];
+								disks[hand][i] = 0;
+								break;
+							}
+						}
 						break;
 					}
-				}
-				break;
-			}
-			case KEY_DOWN: {
-				if (!inHand)
-					break;
-				for (int i = level - 1; i >= 0; --i) {
-					if (!disks[hand][i]) {
-						if ((i != level - 1) && (inHand > disks[hand][i + 1]))
-							break;
-						disks[hand][i] = inHand;
-						inHand = 0;
-						++moves;
+					case KEY_DOWN: {
+						if (!inHand) break;
+						for (int i = level - 1; i >= 0; --i) {
+							if (!disks[hand][i]) {
+								if ((i != level - 1) && (inHand > disks[hand][i + 1])) break;
+								disks[hand][i] = inHand;
+								inHand = 0;
+								++moves;
+								break;
+							}
+						}
 						break;
 					}
-				}
-				break;
-			}
-			case KEY_LEFT: {
-				--hand;
-				if (hand == (uint8_t)-1)
-					hand = 2;
-				break;
-			}
-			case KEY_RIGHT: {
-				++hand;
-				if (hand > 2)
-					hand = 0;
-				break;
-			}
-			case 'S':
-			case 's': {
-				toSave();
-				break;
-			}
-			case 'L':
-			case 'l': {
-				toLoad();
-				break;
-			}
-			case 'a':
-			case 'A': {
-				if (inHand)
-					strcpy(info, "Please put the plate down and let me take care of it.");
-				else {
-					hint();
-					++moves;
-				}
-				break;
-			}
-			default:
-				break;
-		} // switch (key)
-
-		checkWin();
-		if (win)
-			strcpy(info, "WIN!");
-		draw();
-	} while ((key = getch()) != 'q');
+					case KEY_LEFT: {
+						--hand;
+						if (hand == (uint8_t)-1) hand = 2;
+						break;
+					}
+					case KEY_RIGHT: {
+						++hand;
+						if (hand > 2) hand = 0;
+						break;
+					}
+					case 'S':
+					case 's': {
+						toSave();
+						break;
+					}
+					case 'L':
+					case 'l': {
+						toLoad();
+						break;
+					}
+					case 'h':
+					case 'H': {
+						if (inHand)
+							strcpy(info, "Please put the plate down and let me examine it.");
+						else {
+							Movement m = hint();
+							sprintf(
+								info,
+								"Move <%d> from %s to %s",
+								m.disk,
+								m.from == 1 ? "MIDDLE" : m.from == 0 ? "LEFT" : "RIGHT",
+								m.to == 1 ? "MIDDLE" : m.to == 0 ? "LEFT" : "RIGHT"
+							);
+						}
+						break;
+					}
+					case 'a':
+					case 'A': {
+						if (inHand)
+							strcpy(info, "Please put the plate down and let me take care of it.");
+						else {
+							timeout(0);
+							autoSolving = true;
+						}
+						break;
+					}
+					default:
+						break;
+				}  // switch (key)
+			}  // if (!autoSolving)
+			checkWin();
+			draw();
+		}  // if (!win)
+		key = getch();
+		if (key == 'q' || key == 'Q') break;
+	}  // while (1)
 
 end:
 	endwin();
